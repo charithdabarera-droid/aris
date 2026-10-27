@@ -23,7 +23,8 @@ const AI_VOICES={bm_george:'George — British male, deep & calm',bm_lewis:'Lewi
 const V={w:null,ok:false,state:'off',rid:0,items:[],playing:false,ctx:null,src:null,fallback:false,
   init(){if(this.w||S.engine!=='ai')return;try{this.w=new Worker('tts-worker.js',{type:'module'});this.state='loading';uiVoice();
     this.w.onmessage=e=>{const m=e.data;if(m.type==='progress'){this.state='loading '+m.pct+'%';uiVoice()}
-      if(m.type==='ready'){this.ok=true;this.state='ready ('+m.device+')';uiVoice()}if(m.type==='error'){this.state='failed: '+m.error.slice(0,80);uiVoice()}
+      if(m.type==='ready'){this.device=m.device;this.state='warming up ('+m.device+')…';uiVoice();this.warm=performance.now();this.w.postMessage({type:'speak',rid:-1,seq:0,text:'Good day, sir, at your service.',voice:S.aiVoice})}
+      if(m.rid===-1){if(m.type==='audio'){this.rtf=m.ms/1000/(m.audio.length/m.sr);this.ok=this.rtf<1.1;this.state=(this.ok?'ready':'too slow on this device — using browser voice')+` (${this.device}, ${this.rtf.toFixed(2)}× real-time)`}else this.state='failed';uiVoice();return}if(m.type==='error'){this.state='failed: '+m.error.slice(0,80);uiVoice()}
       if(m.type==='audio'||m.type==='fail'){const it=this.items.find(i=>i.rid===m.rid&&i.seq===m.seq);if(it){it.done=true;it.audio=m.audio;it.sr=m.sr;it.ms=m.ms;if(m.type==='fail')it.failed=true;this.pump()}}};
     this.w.postMessage({type:'load'})}catch(e){this.state='unsupported';uiVoice()}},
   unlock(){try{this.ctx=this.ctx||new (window.AudioContext||window.webkitAudioContext)();if(this.ctx.state==='suspended')this.ctx.resume()}catch{}},

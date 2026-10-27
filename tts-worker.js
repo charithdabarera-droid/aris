@@ -9,7 +9,7 @@ async function load(){if(tts)return tts;if(loading)return loading;
   return loading}
 onmessage=e=>{const m=e.data;
   if(m.type==='load')load().catch(()=>{});
-  if(m.type==='speak')queue=queue.then(async()=>{if(m.rid<self.minRid)return;try{const t=await load();const t0=performance.now();const a=await t.generate(m.text,{voice:m.voice||'bm_george',speed:m.speed||1});
+  if(m.type==='speak')queue=queue.then(async()=>{if(m.rid>=0&&m.rid<self.minRid)return;try{const t=await load();const t0=performance.now();const a=await t.generate(m.text,{voice:m.voice||'bm_george',speed:m.speed||1});
       postMessage({type:'audio',rid:m.rid,seq:m.seq,audio:a.audio,sr:a.sampling_rate,ms:Math.round(performance.now()-t0)},[a.audio.buffer])}catch(err){postMessage({type:'fail',rid:m.rid,seq:m.seq,error:String(err)})}});
   if(m.type==='cancel')self.minRid=m.rid};
 self.minRid=0;
