@@ -33,8 +33,10 @@ async function chatStream(p,cb={}){const log=[];let sources=[],ctx='';const last
   outer:for(const M of MODELS)for(let a=0;a<2;a++){try{txt=await streamLLM(M,msgs,(d,f)=>cb.onTok?.(d,f.replace(/\[\[[^\]]*\]?\]?/g,'')));used=M.name;break outer}
     catch(e){err=e;if(txt)break outer;if(e.status===429&&a===0){await new Promise(r=>setTimeout(r,1100));continue}break}}
   if(!used&&!txt)throw new Error('The free AI services are busy right now ('+(err?.message||'unknown')+'). Try again in a moment.');
-  for(const r of txt.matchAll(/\[\[REMEMBER:\s*([^\]]+)\]\]/gi))if(p.perms.memory&&remember(r[1].trim()))log.push('remember_fact: '+r[1].trim());
-  return{reply:txt.replace(/\[\[[^\]]*\]\]/g,'').trim(),tools:log,sources,model:used}}
+  const personal=/\b(remember|note that|my |i am|i'm|i like|i love|i prefer|i hate|i support|i live|i work|call me)\b/i.test(last);
+  const direct=last.match(/^\s*(?:aris[, ]*)?(?:please )?(?:remember|note) (?:that )?(.{4,200})$/i);if(p.perms.memory&&direct){const f=direct[1].replace(/[.!]+$/,'').replace(/\bI am\b/gi,'he is').replace(/\bI'm\b/gi,'he is').replace(/\bmy\b/gi,'his').replace(/\bI\b/g,'he');if(remember('Jude: '+f))log.push('remember_fact: '+f)}
+  for(const r of txt.matchAll(/\[\[REMEMBER:\s*([^\]]+)\]\]/gi))if(p.perms.memory&&personal&&r[1].trim().length>8&&remember(r[1].trim()))log.push('remember_fact: '+r[1].trim());
+  return{reply:txt.replace(/\[\[[^\]]*\]\]/g,'').trim()||(log.length?'Noted, '+(p.honorific||'sir')+'.':'Very good, '+(p.honorific||'sir')+'.'),tools:log,sources,model:used}}
 const J=(o,s=200)=>new Response(JSON.stringify(o),{status:s,headers:{'Content-Type':'application/json'}});
 async function apiFetch(url,opt={}){const u=new URL(url,location.href),b=opt.body?JSON.parse(opt.body):{},M=(opt.method||'GET').toUpperCase();
   if(u.pathname.endsWith('/api/status'))return J({demo:false,model:'llm7 · fast'});
