@@ -77,4 +77,5 @@ $('rate').onchange=$('pitch').onchange=()=>speak('How does this sound, '+S.hon+'
 $('resetVoice').onclick=()=>{S.engine='ai';S.aiVoice='bm_george';$('engine').value='ai';$('aiVoice').value='bm_george';V.init();S.voice='';S.rate=0.95;S.pitch=0.9;save();loadVoices();$('rate').value=S.rate;$('pitch').value=S.pitch;speak('Default voice restored, '+S.hon+'.')};
 $('addMem').onclick=async()=>{const t=$('newMem').value.trim();if(!t)return;await apiFetch('/api/memory',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:t})});$('newMem').value='';loadMem()};
 $('clrMem').onclick=async()=>{if(confirm('Erase all memory?')){await apiFetch('/api/memory',{method:'DELETE'});loadMem()}};
-getLoc();save();setTimeout(()=>V.init(),800);uiVoice();if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
+getLoc();save();setTimeout(()=>V.init(),800);uiVoice();if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').then(()=>{if(!crossOriginIsolated&&!sessionStorage.coiReload&&navigator.serviceWorker.controller==null){sessionStorage.coiReload=1;location.reload()}});
+navigator.serviceWorker?.addEventListener('controllerchange',()=>{if(!crossOriginIsolated&&!sessionStorage.coiReload){sessionStorage.coiReload=1;location.reload()}});
