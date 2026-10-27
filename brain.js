@@ -21,9 +21,9 @@ Replies are spoken aloud: no markdown tables.
 TOOLS (text protocol): To use a tool, reply with ONLY one line and nothing else:
 ${p.perms.web?'[[SEARCH: query]] — web/encyclopedia search (Wikipedia + DuckDuckGo instant answers; weak for breaking news)\n[[FETCH: https://url]] — read a web page\n':''}You will then receive the result and should answer normally.${p.perms.memory?'\nTo save a NEW durable fact about the user, append on its own line at the end of a normal reply: [[REMEMBER: fact]]':''}
 Never invent tool results.`}
-async function callLLM(msgs,force){for(let a=0;a<3;a++){try{const r=await fetch(LLM_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:LLM_MODEL,messages:msgs})});
-  if(!r.ok)throw new Error('LLM '+r.status);const m=(await r.json()).choices?.[0]?.message||{};
-  if(!(m.content||'').trim()&&(force||!/search|current|latest/i.test(m.reasoning||''))&&a<2)throw new Error('empty');return m}catch(e){if(a>=2)throw e;await new Promise(r=>setTimeout(r,1500))}}}
+async function callLLM(msgs,force){for(let a=0;a<4;a++){try{const r=await fetch(LLM_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:LLM_MODEL,messages:msgs})});
+  if(!r.ok){const e=new Error(r.status==402||r.status==429?'The free AI service is busy (rate limit). Give it a few seconds and try again.':'LLM error '+r.status);e.wait=(r.status==402||r.status==429)?4000*(a+1):1500;throw e}const m=(await r.json()).choices?.[0]?.message||{};
+  if(!(m.content||'').trim()&&(force||!/search|current|latest/i.test(m.reasoning||''))&&a<3)throw new Error('empty');return m}catch(e){if(a>=3)throw e;await new Promise(r=>setTimeout(r,e.wait||1500))}}}
 async function chat(p){const msgs=[{role:'system',content:sysPrompt(p)},...p.messages.slice(-20)];const log=[];let sources=[];
   for(let i=0;i<4;i++){const searched=log.length>0;const m=await callLLM(msgs,searched);let c=(m.content||'').trim();
     if(!c&&searched&&sources.length)c='Here is what I found, '+(p.honorific||'sir')+': '+sources[0].snippet;
