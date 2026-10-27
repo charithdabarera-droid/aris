@@ -8,7 +8,7 @@
 <aside id="panel" hidden><h2>Settings</h2>
 <label>Your name <input id="name"></label><label>Form of address <input id="hon"></label>
 <h3>Permissions</h3><label class="t"><input type="checkbox" id="p_web"> Internet (web search & page fetch)</label><label class="t"><input type="checkbox" id="p_memory"> Memory (learn & recall facts)</label><label class="t"><input type="checkbox" id="p_voice"> Voice (speak replies)</label><label class="t"><input type="checkbox" id="p_loc"> Location (browser geolocation)</label>
-<label>Voice <select id="voice"></select></label><label>Speed <input type="range" id="rate" min="0.7" max="1.3" step="0.05"></label><label>Pitch <input type="range" id="pitch" min="0.6" max="1.3" step="0.05"></label><button id="resetVoice">Reset to gentleman's voice</button>
+<h3>Voice</h3><label>Engine <select id="engine"><option value="ai">Natural AI voice (runs on this device)</option><option value="browser">Browser voice (instant, more robotic)</option></select></label><label>AI voice <select id="aiVoice"></select></label><div id="aiStatus" style="font-size:12px;opacity:.7"></div><button id="testVoice">Test voice</button><label>Browser / fallback voice <select id="voice"></select></label><label>Speed <input type="range" id="rate" min="0.7" max="1.3" step="0.05"></label><label>Pitch <input type="range" id="pitch" min="0.6" max="1.3" step="0.05"></label><button id="resetVoice">Reset to gentleman's voice</button>
 <h3>Memory</h3><ul id="mem"></ul><div class="row"><input id="newMem" placeholder="Add a fact…"><button id="addMem">Add</button></div><button id="clrMem" class="danger">Clear all memory</button>
 <button id="close">Close</button></aside>
-<script src="brain.js?v=2"></script><script src="app.js?v=2"></script></body></html>
+<script src="brain.js?v=3"></script><script src="app.js?v=3"></script></body></html>
