@@ -1,43 +1,43 @@
-// ARIS browser-only "backend": Pollinations LLM + Wikipedia/DuckDuckGo search + localStorage memory.
-const LLM_URL='https://text.pollinations.ai/openai', LLM_MODEL='openai';
+// ARIS browser-only brain: streaming LLM (llm7.io keyless -> Pollinations fallback), keyword-gated search, localStorage memory.
+const MODELS=[{name:'llm7/mistral-nemo',url:'https://api.llm7.io/v1/chat/completions',model:'default',ttfb:5000},
+              {name:'pollinations/gpt-oss-20b',url:'https://text.pollinations.ai/openai',model:'openai-fast',ttfb:15000}];
 const mem={get:()=>JSON.parse(localStorage.arisMem||'{"facts":[]}'),set:m=>localStorage.arisMem=JSON.stringify(m)};
-function remember(text){const m=mem.get(),k=x=>x.toLowerCase().replace(/^(the )?user (prefers|likes|takes|supports) /,'').replace(/\W/g,'');
-  if(m.facts.some(f=>k(f.text)===k(text)||k(f.text).includes(k(text))||k(text).includes(k(f.text))))return false;m.facts.push({text,at:new Date().toISOString()});mem.set(m);return true}
+function remember(text){const m=mem.get(),k=x=>x.toLowerCase().replace(/^(the )?user (prefers|likes|takes|supports|is) /,'').replace(/\W/g,'');
+  if(!k(text)||m.facts.some(f=>k(f.text)===k(text)||k(f.text).includes(k(text))||k(text).includes(k(f.text))))return false;m.facts.push({text,at:new Date().toISOString()});mem.set(m);return true}
 const strip=h=>String(h||'').replace(/<[^>]+>/g,'').replace(/&quot;/g,'"').replace(/&amp;/g,'&').replace(/&#039;/g,"'");
+const tfetch=(u,ms,o={})=>fetch(u,{...o,signal:AbortSignal.timeout(ms)});
 async function webSearch(q){const out=[];
-  try{const d=await (await fetch('https://api.duckduckgo.com/?format=json&no_html=1&skip_disambig=1&q='+encodeURIComponent(q))).json();
-    if(d.AbstractText)out.push({title:d.Heading||q,url:d.AbstractURL,snippet:d.AbstractText});if(d.Answer)out.push({title:'Instant answer',url:'https://duckduckgo.com/?q='+encodeURIComponent(q),snippet:String(d.Answer)});
-    (d.RelatedTopics||[]).filter(t=>t.Text).slice(0,2).forEach(t=>out.push({title:t.Text.slice(0,60),url:t.FirstURL,snippet:t.Text}));}catch(e){}
-  try{const d=await (await fetch('https://en.wikipedia.org/w/api.php?action=query&list=search&format=json&origin=*&srlimit=4&srsearch='+encodeURIComponent(q))).json();
-    d.query.search.forEach(s=>out.push({title:s.title+' (Wikipedia)',url:'https://en.wikipedia.org/wiki/'+encodeURIComponent(s.title.replace(/ /g,'_')),snippet:strip(s.snippet)}));}catch(e){}
-  return out.slice(0,6)}
-async function fetchPage(u){const r=await fetch('https://r.jina.ai/'+u);return (await r.text()).slice(0,6000)}
-function sysPrompt(p){const f=mem.get().facts;return `You are ARIS, a calm, witty, impeccably polite British butler-style AI assistant to ${p.name||'Jude Dabarera'} (based in Dubai). Address the user as "${p.honorific||'sir'}" naturally. Be concise (1-4 sentences unless asked), dry-humoured, warm; happy to chat casually. Never make up facts. Current time (Dubai): ${new Date().toLocaleString('en-GB',{timeZone:'Asia/Dubai'})}.
-${p.location?`User's approximate location: ${p.location}.`:''}
-${p.perms.memory?`Known facts about the user:\n${f.map(x=>'- '+x.text).join('\n')||'(none yet)'}`:'Memory is disabled by the user.'}
-${p.perms.web?'':'Internet access is disabled by the user; say so if asked for live info.'}
-Replies are spoken aloud: no markdown tables.
-
-TOOLS (text protocol): To use a tool, reply with ONLY one line and nothing else:
-${p.perms.web?'[[SEARCH: query]] — web/encyclopedia search (Wikipedia + DuckDuckGo instant answers; weak for breaking news)\n[[FETCH: https://url]] — read a web page\n':''}You will then receive the result and should answer normally.${p.perms.memory?'\nTo save a NEW durable fact about the user, append on its own line at the end of a normal reply: [[REMEMBER: fact]]':''}
-Never invent tool results.`}
-async function callLLM(msgs,force){for(let a=0;a<4;a++){try{const r=await fetch(LLM_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:LLM_MODEL,messages:msgs})});
-  if(!r.ok){const e=new Error(r.status==402||r.status==429?'The free AI service is busy (rate limit). Give it a few seconds and try again.':'LLM error '+r.status);e.wait=(r.status==402||r.status==429)?4000*(a+1):1500;throw e}const m=(await r.json()).choices?.[0]?.message||{};
-  if(!(m.content||'').trim()&&(force||!/search|current|latest/i.test(m.reasoning||''))&&a<3)throw new Error('empty');return m}catch(e){if(a>=3)throw e;await new Promise(r=>setTimeout(r,e.wait||1500))}}}
-async function chat(p){const msgs=[{role:'system',content:sysPrompt(p)},...p.messages.slice(-20)];const log=[];let sources=[];
-  for(let i=0;i<4;i++){const searched=log.length>0;const m=await callLLM(msgs,searched);let c=(m.content||'').trim();
-    if(!c&&searched&&sources.length)c='Here is what I found, '+(p.honorific||'sir')+': '+sources[0].snippet;
-    if(!c&&p.perms.web&&!searched&&/search|current|latest|look up/i.test(m.reasoning||''))c='[[SEARCH: '+((m.reasoning.match(/\[\[SEARCH:\s*([^\]]+)\]\]/i)||[])[1]||p.messages.at(-1).content).slice(0,150)+']]';
-    const sm=c.match(/\[\[(SEARCH|FETCH):\s*([^\]]+)\]\]/i);
-    if(sm&&p.perms.web){msgs.push({role:'assistant',content:c});let out;const arg=sm[2].trim();
-      try{if(sm[1].toUpperCase()==='SEARCH'){const r=await webSearch(arg);log.push('web_search: '+arg);sources=r.slice(0,3);out=r.map((x,i)=>`${i+1}. ${x.title} (${x.url}): ${x.snippet}`).join('\n')||'no results'}
-        else{log.push('fetch_page: '+arg);out=await fetchPage(arg)}}catch(e){out='error: '+e.message}
-      msgs.push({role:'user',content:`TOOL RESULT (${sm[1]}):\n${String(out).slice(0,6000)}\n\nNow answer my previous message using this, in character, in plain prose (1-4 sentences), no tool lines. If the results don't answer it, say so honestly.`});continue}
-    for(const r of c.matchAll(/\[\[REMEMBER:\s*([^\]]+)\]\]/gi))if(p.perms.memory&&remember(r[1].trim()))log.push('remember_fact: '+r[1].trim());
-    c=c.replace(/\[\[[A-Z]+:[^\]]*\]\]/gi,'').trim();return{reply:c||'Done, '+(p.honorific||'sir')+'.',tools:log,sources}}
-  return{reply:'I appear to have gone round in circles.',tools:log,sources}}
+  const [dd,wk]=await Promise.allSettled([tfetch('https://api.duckduckgo.com/?format=json&no_html=1&skip_disambig=1&q='+encodeURIComponent(q),3000).then(r=>r.json()),
+    tfetch('https://en.wikipedia.org/w/api.php?action=query&list=search&format=json&origin=*&srlimit=3&srsearch='+encodeURIComponent(q),3000).then(r=>r.json())]);
+  if(dd.value){const d=dd.value;if(d.Answer)out.push({title:'Instant answer',url:'https://duckduckgo.com/?q='+encodeURIComponent(q),snippet:String(d.Answer)});if(d.AbstractText)out.push({title:d.Heading||q,url:d.AbstractURL,snippet:d.AbstractText.slice(0,400)})}
+  if(wk.value)(wk.value.query?.search||[]).forEach(s=>out.push({title:s.title+' (Wikipedia)',url:'https://en.wikipedia.org/wiki/'+encodeURIComponent(s.title.replace(/ /g,'_')),snippet:strip(s.snippet)}));
+  return out.slice(0,4)}
+// Search only when clearly asked for a lookup/factual/current info
+function needsSearch(t){t=t.toLowerCase();return /\b(search|look ?up|google|find out|wiki|who (is|was|are|were|won|invented|founded)|what (is|was|are) (a |an |the )?[a-z]|when (did|was|is)|where (is|was)|how (tall|big|old|far|many|much)|history of|define|definition|latest|news|today'?s|current(ly)?|price of|population|capital of)\b/.test(t)&&!/\b(what is your|who are you|what should i|how are you)\b/.test(t)}
+function searchQuery(t){return t.replace(/^(hey |hi |ok |okay )?(aris[, ]*)?/i,'').replace(/\b(please|can you|could you|search( for)?|look (it )?up|google|for me|tell me)\b/gi,'').replace(/[?!.]+$/,'').trim().slice(0,120)||t}
+function sysPrompt(p,ctx){const f=p.perms.memory?mem.get().facts.slice(-15).map(x=>x.text).join('; '):'';
+  return `You are ARIS, ${p.name||'Jude'}'s calm, witty British butler AI (he lives in Dubai). Call him "${p.honorific||'sir'}". Reply in 1-3 short spoken sentences, no markdown. Never invent facts (never mention weather, news or numbers unless given below). Dubai time: ${new Date().toLocaleString('en-GB',{timeZone:'Asia/Dubai',weekday:'short',hour:'2-digit',minute:'2-digit',day:'numeric',month:'short'})}.${p.location?' Location: '+p.location+'.':''}${f?' Known about him: '+f+'.':''}${p.perms.memory?' If he shares a new lasting fact or preference, end with [[REMEMBER: fact]].':''}${ctx?'\nYou have just searched the web for him. Answer from these results, naming the source briefly; never say you cannot browse. If they do not answer it, say so.\nRESULTS:\n'+ctx:''}`}
+async function streamLLM(M,msgs,onTok){const ctl=new AbortController();let tm=setTimeout(()=>ctl.abort(),M.ttfb);
+  const r=await fetch(M.url,{method:'POST',signal:ctl.signal,headers:{'Content-Type':'application/json'},body:JSON.stringify({model:M.model,messages:msgs,stream:true,max_tokens:150,temperature:0.7})});
+  if(!r.ok){clearTimeout(tm);const e=new Error(M.name+' HTTP '+r.status);e.status=r.status;throw e}
+  const rd=r.body.getReader(),dec=new TextDecoder();let buf='',txt='',first=true;
+  for(;;){const{done,value}=await rd.read();if(done)break;buf+=dec.decode(value,{stream:true});const ls=buf.split('\n');buf=ls.pop();
+    for(const l of ls){if(!l.startsWith('data:')||l.includes('[DONE]'))continue;let c;try{c=JSON.parse(l.slice(5)).choices?.[0]?.delta?.content}catch{}
+      if(c){if(first){first=false;clearTimeout(tm);tm=setTimeout(()=>ctl.abort(),20000)}txt+=c;onTok(c,txt)}}}
+  clearTimeout(tm);if(!txt.trim())throw new Error(M.name+' empty');return txt}
+// p: {messages,name,honorific,perms,location}; cb: {onTok(delta,full), onStatus(s)}
+async function chatStream(p,cb={}){const log=[];let sources=[],ctx='';const last=p.messages.at(-1).content;
+  if(p.perms.web&&needsSearch(last)){cb.onStatus?.('searching');const q=searchQuery(last);try{sources=await webSearch(q)}catch{};log.push('web_search: '+q);
+    ctx=sources.map((x,i)=>`${i+1}. ${x.title}: ${x.snippet}`).join('\n')||'(no results found)'}
+  const msgs=[{role:'system',content:sysPrompt(p,ctx)},...p.messages.slice(-12)];let txt='',used='',err;
+  outer:for(const M of MODELS)for(let a=0;a<2;a++){try{txt=await streamLLM(M,msgs,(d,f)=>cb.onTok?.(d,f.replace(/\[\[[^\]]*\]?\]?/g,'')));used=M.name;break outer}
+    catch(e){err=e;if(txt)break outer;if(e.status===429&&a===0){await new Promise(r=>setTimeout(r,1100));continue}break}}
+  if(!used&&!txt)throw new Error('The free AI services are busy right now ('+(err?.message||'unknown')+'). Try again in a moment.');
+  for(const r of txt.matchAll(/\[\[REMEMBER:\s*([^\]]+)\]\]/gi))if(p.perms.memory&&remember(r[1].trim()))log.push('remember_fact: '+r[1].trim());
+  return{reply:txt.replace(/\[\[[^\]]*\]\]/g,'').trim(),tools:log,sources,model:used}}
 const J=(o,s=200)=>new Response(JSON.stringify(o),{status:s,headers:{'Content-Type':'application/json'}});
 async function apiFetch(url,opt={}){const u=new URL(url,location.href),b=opt.body?JSON.parse(opt.body):{},M=(opt.method||'GET').toUpperCase();
-  try{if(u.pathname.endsWith('/api/status'))return J({demo:false,model:'pollinations/openai (free)'});
+  if(u.pathname.endsWith('/api/status'))return J({demo:false,model:'llm7 · fast'});
   if(u.pathname.endsWith('/api/memory')){const m=mem.get();if(M==='DELETE'){const i=u.searchParams.get('i');if(i!==null)m.facts.splice(+i,1);else m.facts=[];mem.set(m)}else if(M==='POST'&&b.text){m.facts.push({text:b.text,at:new Date().toISOString()});mem.set(m)}return J(mem.get())}
-  if(u.pathname.endsWith('/api/chat')){b.perms=b.perms||{};return J(await chat(b))}}catch(e){return J({error:e.message},500)}return J({error:'not found'},404)}
+  return J({error:'not found'},404)}
+if(typeof module!=='undefined')module.exports={chatStream,needsSearch,searchQuery,mem};
