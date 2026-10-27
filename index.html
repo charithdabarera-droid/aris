@@ -1,0 +1,14 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>ARIS</title><link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#02060c"><link rel="icon" href="icon.svg"><link rel="stylesheet" href="style.css"></head>
+<body><div class="grid"></div>
+<header><div class="brand">A.R.I.S.<small>Adaptive Responsive Intelligence System</small></div><div id="status" class="chip">…</div><button id="setBtn" class="icon">⚙</button></header>
+<main><div id="orbWrap"><div id="orb"><div class="ring r1"></div><div class="ring r2"></div><div class="ring r3"></div><div class="core"></div></div><div id="state">STANDBY</div></div>
+<div id="log"></div></main>
+<footer><button id="mic" class="icon" title="Talk">🎙</button><input id="inp" placeholder="Speak or type, sir…" autocomplete="off"><button id="send" class="icon">➤</button></footer>
+<aside id="panel" hidden><h2>Settings</h2>
+<label>Your name <input id="name"></label><label>Form of address <input id="hon"></label>
+<h3>Permissions</h3><label class="t"><input type="checkbox" id="p_web"> Internet (web search & page fetch)</label><label class="t"><input type="checkbox" id="p_memory"> Memory (learn & recall facts)</label><label class="t"><input type="checkbox" id="p_voice"> Voice (speak replies)</label><label class="t"><input type="checkbox" id="p_loc"> Location (browser geolocation)</label>
+<label>Voice <select id="voice"></select></label>
+<h3>Memory</h3><ul id="mem"></ul><div class="row"><input id="newMem" placeholder="Add a fact…"><button id="addMem">Add</button></div><button id="clrMem" class="danger">Clear all memory</button>
+<button id="close">Close</button></aside>
+<script src="brain.js"></script><script src="app.js"></script></body></html>
